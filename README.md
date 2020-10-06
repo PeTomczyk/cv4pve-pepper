@@ -17,6 +17,7 @@ Options:
   -?|-h|--help  Show help information
   --version         Show version information
   --host            The host name host[:port],host1[:port],host2[:port]
+  --api-token       Api token format 'USER@REALM!TOKENID=UUID'. Require Proxmox VE 6.2 or later
   --username        User name <username>@<realm>
   --password        The password. Specify 'file:path_file' to store password in file.
   --vmid            The id or name VM/CT
@@ -63,6 +64,13 @@ this software aims to simplify run SPICE client from Proxmox VE using command li
 * Not require Web login
 * Support multiple host for HA in --host parameter es. host[:port],host1[:port],host2[:port]
 * Check-Update and Upgrade application
+* Use Api token --api-token parameter
+
+## Api token
+
+From version 6.2 of Proxmox VE is possible to use [Api token](https://pve.proxmox.com/pve-docs/pveum-plain.html).
+This feature permit execute Api without using user and password.
+If using **Privilege Separation** when create api token remember specify in permission.
 
 ## Configuration and use
 
@@ -94,3 +102,7 @@ root@debian:~# cv4pve-pepper --host=192.168.0.100 --username=root@pam --password
 
 * Linux /usr/bin/remote-viewer
 * Windows C:\Program Files\VirtViewer v?.?-???\bin\remote-viewer.exe
+
+## Error
+
+* **no spice port**: This error appears when you have not configured the display hardware on SPICE.

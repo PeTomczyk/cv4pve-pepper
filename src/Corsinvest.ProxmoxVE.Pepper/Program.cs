@@ -10,7 +10,9 @@
  * Copyright (C) 2016 Corsinvest Srl	GPLv3 and CEL
  */
 
+using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using Corsinvest.ProxmoxVE.Api.Extension.Helpers;
 using Corsinvest.ProxmoxVE.Api.Shell.Helpers;
 using McMaster.Extensions.CommandLineUtils;
@@ -21,10 +23,10 @@ namespace Corsinvest.ProxmoxVE.Pepper
     {
         static int Main(string[] args)
         {
-            var app = ShellHelper.CreateConsoleApp("cv4pve-pepper", 
-                                                   "Launching SPICE on Proxmox VE");
+            var app = ShellHelper.CreateConsoleApp("cv4pve-pepper", "Launching SPICE on Proxmox VE");
 
             var optVmId = app.VmIdOrNameOption().DependOn(app, CommandOptionExtension.HOST_OPTION_NAME);
+
             var optRemoteViewer = app.Option("--viewer",
                                              "Executable SPICE client remote viewer",
                                              CommandOptionType.SingleValue)
@@ -34,22 +36,52 @@ namespace Corsinvest.ProxmoxVE.Pepper
             app.OnExecute(() =>
             {
                 var fileName = Path.GetTempFileName().Replace(".tmp", ".vv");
-                var ret = SpiceHelper.CreateFileSpaceClient(app.ClientTryLogin(),
-                                                            optVmId.Value(),
-                                                            fileName);
+                var client = app.ClientTryLogin();
+                var ret = SpiceHelper.CreateFileSpaceClient(client, optVmId.Value(), fileName);
 
                 if (ret)
                 {
-                    var cmd = StringHelper.Quote(optRemoteViewer.Value()) +
-                                                 " " +
-                                                 StringHelper.Quote(fileName);
+                    var startInfo = new ProcessStartInfo
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = false,
+                    };
 
-                    ret = ShellHelper.Execute(cmd,
-                                              true,
-                                              null,
-                                              app.Out,
-                                              app.DryRunIsActive(),
-                                              app.DebugIsActive()).ExitCode == 0;
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                    {
+                        startInfo.FileName = "/bin/bash";
+                        startInfo.Arguments = $"-c \"{optRemoteViewer.Value()} {fileName}\"";
+                    }
+                    else if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    {
+                        startInfo.FileName = StringHelper.Quote(optRemoteViewer.Value());
+                        startInfo.Arguments = StringHelper.Quote(fileName);
+                    }
+
+                    var process = new Process
+                    {
+                        StartInfo = startInfo
+                    };
+
+                    if (app.DebugIsActive())
+                    {
+                        app.Out.WriteLine($"Run FileName: {process.StartInfo.FileName}");
+                        app.Out.WriteLine($"Run Arguments: {process.StartInfo.Arguments}");
+                    }
+
+                    if (!app.DryRunIsActive())
+                    {
+                        process.Start();
+                        ret = !process.HasExited || process.ExitCode == 0;
+                    }
+                }
+                else
+                {
+                    if(!client.LastResult.IsSuccessStatusCode)
+                    {
+                        app.Out.WriteLine($"Error: {client.LastResult.ReasonPhrase}");
+                    }
                 }
 
                 return ret ? 0 : 1;
